@@ -10,7 +10,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Void
 import Data.Word (Word8)
 import Test.Hspec
-import Test.Hspec.Megaparsec.AdHoc ()
+import Test.Hspec.Megaparsec.AdHoc.Common ()
 import Test.QuickCheck
 import Text.Megaparsec.Error
 import Text.Megaparsec.Error.Builder

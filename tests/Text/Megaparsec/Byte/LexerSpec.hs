@@ -3,15 +3,16 @@
 module Text.Megaparsec.Byte.LexerSpec (spec) where
 
 import Control.Applicative
+import Control.Monad
 import Data.ByteString (ByteString)
 import Data.Char (toUpper)
 import Data.Monoid ((<>))
 import Data.Scientific (Scientific, fromFloatDigits)
-import Data.Void
 import Data.Word (Word8)
 import Numeric (showInt, showHex, showOct, showFFloatAlt)
 import Test.Hspec
 import Test.Hspec.Megaparsec
+import Test.Hspec.Megaparsec.AdHoc.Byte
 import Test.QuickCheck
 import Text.Megaparsec
 import Text.Megaparsec.Byte.Lexer
@@ -19,10 +20,32 @@ import qualified Data.ByteString       as B
 import qualified Data.ByteString.Char8 as B8
 import qualified Text.Megaparsec.Byte  as B
 
-type Parser = Parsec Void ByteString
-
 spec :: Spec
 spec = do
+
+  describe "symbol" $
+    context "when stream begins with the symbol" $
+      it "parses the symbol and trailing whitespace" $
+        property $ forAll mkSymbol $ \s -> do
+          let p = symbol scn y
+              y = B.takeWhile (not . isSpace) s
+          prs  p s `shouldParse` y
+          prs' p s `succeedsLeaving` ""
+
+  describe "symbol'" $
+    context "when stream begins with the symbol" $
+      it "parses the symbol and trailing whitespace" $
+        property $ forAll mkSymbol $ \s -> do
+          let p = symbol' scn y'
+              y' = B8.map toUpper y
+              y = B.takeWhile (not . isSpace) s
+          -- NOTE In some rare cases it's possible that y' will have a
+          -- different length than y due to the craziness of Unicode. We
+          -- cannot deal with those cases due to how the tokens primitive is
+          -- implemented. This is a “feature”, not a bug.
+          when (B.length y' /= B.length y) discard
+          prs  p s `shouldParse` y
+          prs' p s `succeedsLeaving` ""
 
   describe "skipLineComment" $ do
     context "when there is no newline at the end of line" $
@@ -262,26 +285,17 @@ spec = do
 ----------------------------------------------------------------------------
 -- Helpers
 
-prs
-  :: Parser a          -- ^ Parser to run
-  -> ByteString        -- ^ Input for the parser
-  -> Either (ParseError Word8 Void) a -- ^ Result of parsing
-prs p = parse p ""
+mkSymbol :: Gen ByteString
+mkSymbol = do
+  sym <- symbolName
+  scp <- whiteChars
+  return . B.pack $ sym ++ scp
 
-prs'
-  :: Parser a          -- ^ Parser to run
-  -> ByteString        -- ^ Input for the parser
-  -> (State ByteString, Either (ParseError Word8 Void) a) -- ^ Result of parsing
-prs' p s = runParser' p (initialState s)
+symbolName :: Gen [Word8]
+symbolName = listOf $ arbitrary `suchThat` isAlphaNum
 
-isDigit :: Word8 -> Bool
-isDigit w = w - 48 < 10
+whiteChars :: Gen [Word8]
+whiteChars = listOf (elements [9,10,32])
 
-isOctDigit :: Word8 -> Bool
-isOctDigit w = w - 48 < 8
-
-isHexDigit :: Word8 -> Bool
-isHexDigit w =
-  (w >= 48 && w <= 57)  ||
-  (w >= 97 && w <= 102) ||
-  (w >= 65 && w <= 70)
+scn :: Parser ()
+scn = space B.space1 empty empty
